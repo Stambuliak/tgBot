@@ -1,0 +1,205 @@
+from aiogram import Bot, Dispatcher, types 
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.filters import Command
+import hashlib
+import time
+
+API_TOKEN = "7649330488:AAG1O2nA-U2W897oWpSs0b3hTDqlrK5h7OI"
+
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher()
+
+# Словарь для хранения состояния пользователей, хэшей фотографий и времени отправки первого скрина
+user_states = {}
+photo_hashes = set()
+
+# Клавиатура с кнопками "Готов работать", "Инструкция" и "Как должен выглядеть скриншот?"
+ready_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="✅ Готов работать"), KeyboardButton(text="ℹ️ Инструкция")],
+        [KeyboardButton(text="📸 Как должен выглядеть скриншот?")]
+    ],
+    resize_keyboard=True
+)
+
+# Текст инструкции с добавленной информацией
+instruction_text = """
+🔵 Привет!
+
+🔹 Готов начать работать?
+🔹 Вот вся необходимая информация и инструкции, чтобы приступить прямо сейчас:
+
+---
+
+🔵 ВАЖНО: ПОДПИСКА НА СПОНСОРОВ ОБЯЗАТЕЛЬНА!
+Без подписки на спонсоров вы не сможете приступить к работе и получить выплаты.
+
+🔹 Вот спонсоры:
+1️⃣ https://t.me/+p99fYtFu34swMjVi
+2️⃣ https://t.me/+JH9C3lkuSmpiZmMy
+3️⃣ https://t.me/+lETSt4ykDxAxNjhi
+4️⃣ https://t.me/+y2sEWX2xZABjZTFi
+
+После подписки переходите к инструкции по работе.
+
+---
+
+🔵 ЧТО НУЖНО ДЕЛАТЬ:
+
+1️⃣ Комментировать видео на TikTok по ключевым словам:
+"арбитраж", "заработок", "трафик" и т.д.
+
+Темы:
+✔️ Арбитраж трафика
+✔️ Заработок
+✔️ Криптовалюта
+✔️ Пассивный доход
+
+2️⃣ Отвечайте людям на комментарии с ключевыми словами:
+"Научите", "Как", "Кто может научить", "Объясните" и т.д.
+
+🔹 Пример комментария:
+Скопируйте его⬇️
+
+💸 Хочешь зарабатывать 0.5 $ за каждый комментарий? 💵
+⚡️ Отправляй такие же комментарии и начинай получать доход! 🚀
+🎯 Заходи в наш Telegram: @arbykaz – там вся инструкция 🖋
+🔥 Начать можно прямо сейчас, не теряй время! 💼
+
+---
+
+🔵 ВАЖНЫЕ ПРАВИЛА:
+
+✔️ Каждый ваш комментарий вы должны лайкать.
+✔️ Лайкайте также комментарии людей, которым вы отвечаете.
+
+🔹 Все скрины отправляйте сюда:
+📩 @workstt
+
+---
+
+🔵 УСЛОВИЯ РАБОТЫ И ОПЛАТА:
+
+💵 За каждый комментарий вы получаете $0.5.
+
+✔️ **Минимум 1000 комментариев в неделю** для получения выплаты!
+
+Выплаты производятся в конце вашей рабочей недели, то есть если вы начали работать в четверг, ваша выплата прийдёт в следующий четверг.
+
+⚠️ Важно:
+
+✔️ **Не повторяйте одинаковые скрины** – это аннулирует выплаты.
+✔️ Добавляйте смайлики или варьируйте текст, чтобы избежать блокировок на TikTok.
+✔️ Если **не будет подписки на спонсоров**, выплаты не будет.
+
+---
+
+🔵 ГОТОВЫ НАЧАТЬ?
+
+Убедитесь, что подписаны на спонсоров и ознакомились с инструкцией.
+🔹 Вы можете сразу начинать работу, а все скрины отправляйте в конце дня.
+
+📩 Вы можете отправлять скрины нашему боту:
+📩 @workstt
+
+---
+
+🎯 Начинайте зарабатывать прямо сейчас!
+"""
+
+# Обработчик команды /start
+@dp.message(Command("start"))
+async def start_command(message: types.Message):
+    user_id = message.from_user.id
+    if user_id not in user_states:
+        user_states[user_id] = {"ready_to_work": False, "screenshot_count": 0, "start_time": None}
+    await message.answer("🔵 Нажмите 'Готов работать', чтобы начать отправлять скриншоты.", reply_markup=ready_keyboard)
+
+# Обработчик кнопки "Готов работать"
+@dp.message(lambda message: message.text and message.text.strip() == "✅ Готов работать")
+async def ready_to_work(message: types.Message):
+    user_id = message.from_user.id
+    user_states[user_id]["ready_to_work"] = True
+    user_states[user_id]["screenshot_count"] = 0  # Сбрасываем счетчик скриншотов при новом начале
+    await message.answer("✅ Можете отправлять скриншоты. После каждого скриншота я проверю его уникальность и посчитаю!")
+
+# Обработчик кнопки "Инструкция"
+@dp.message(lambda message: message.text and message.text.strip() == "ℹ️ Инструкция")
+async def instruction(message: types.Message):
+    await message.answer(instruction_text)
+
+# Обработчик кнопки "Как должен выглядеть скриншот?"
+@dp.message(lambda message: message.text and message.text.strip() == "📸 Как должен выглядеть скриншот?")
+async def screenshot_example(message: types.Message):
+    # Отправляем фото с примера
+    await message.answer_photo(
+        photo="https://imgur.com/a/a3oJx84",  # Ссылка на фото с примером
+        caption="Вот как должен выглядеть ваш скриншот. Убедитесь, что все требования выполнены!"
+    )
+
+# Обработчик скриншотов
+@dp.message(lambda message: message.photo)
+async def handle_screenshots(message: types.Message):
+    user_id = message.from_user.id
+    if not user_states.get(user_id, {}).get("ready_to_work", False):
+        await message.answer("🔴 Вы ещё не готовы работать. Пожалуйста, нажмите 'Готов работать'.")
+        return
+
+    # Получаем файл
+    photo = message.photo[-1]  # Берём фото с максимальным размером
+    file = await bot.get_file(photo.file_id)
+    file_path = file.file_path
+
+    # Скачиваем файл
+    file_data = await bot.download_file(file_path)
+
+    # Вычисляем хэш файла
+    photo_hash = hashlib.md5(file_data.read()).hexdigest()
+
+    # Проверяем на уникальность
+    if photo_hash in photo_hashes:
+        await message.answer("❌ Этот скриншот уже был отправлен. Отправьте другой.")
+    else:
+        # Добавляем хэш в общий набор
+        photo_hashes.add(photo_hash)
+
+        # Увеличиваем счетчик уникальных скриншотов для пользователя
+        user_states[user_id]["screenshot_count"] += 1
+        count = user_states[user_id]["screenshot_count"]
+
+        # Если это первый скриншот, начинаем отсчёт времени
+        if user_states[user_id]["start_time"] is None:
+            user_states[user_id]["start_time"] = time.time()  # Запоминаем время отправки первого скрина
+
+        # Вычисляем оставшееся время до зарплаты (7 дней)
+        time_elapsed = time.time() - user_states[user_id]["start_time"]
+        remaining_time = 604800 - time_elapsed  # 7 дней = 604800 секунд
+
+        # Если время прошло, сбрасываем отсчёт
+        if remaining_time <= 0:
+            user_states[user_id]["start_time"] = time.time()  # Сброс времени
+            remaining_time = 604800  # Устанавливаем новый отсчёт
+
+        days_remaining = int(remaining_time // 86400)
+        hours_remaining = int((remaining_time % 86400) // 3600)
+        minutes_remaining = int((remaining_time % 3600) // 60)
+        seconds_remaining = int(remaining_time % 60)
+
+        # Отправляем ответ с количеством скриншотов и оставшимся временем
+        await message.answer(f"📸 Скриншот засчитан! Вы отправили уже {count} скриншет(ов). Продолжайте!\n"
+                             f"⏳ До зарплаты осталось {days_remaining} дней, {hours_remaining} часов, "
+                             f"{minutes_remaining} минут и {seconds_remaining} секунд.\n"
+                             f"💰 Минимум 1000 скриншотов для получения выплаты.\n"
+                             f"⚠️ Без подписки на спонсоров выплаты не будет!")
+
+# Обработчик других сообщений
+@dp.message(lambda message: not message.photo)
+async def handle_other_messages(message: types.Message):
+    user_id = message.from_user.id
+    if user_states.get(user_id, {}).get("ready_to_work", False):
+        await message.answer("❌ Вы можете отправлять только скриншоты!")
+    else:
+        await message.answer("🔴 Вы ещё не готовы работать. Пожалуйста, нажмите 'Готов работать'.")
+
+if __name__ == "__main__":
+    dp.run_polling(bot)
